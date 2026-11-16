@@ -1,12 +1,26 @@
 {
-  "name":"PescAOL - Compra pesca legal",
-  "short_name":"PescAOL",
-  "description":"Consulta ciudadana de establecimientos con acreditaciones AOL recientes.",
-  "start_url":"./",
-  "scope":"./",
-  "display":"standalone",
-  "background_color":"#f3f6f7",
-  "theme_color":"#007ca7",
-  "lang":"es-CL",
-  "icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+  "id": "./",
+  "name": "PescAOL - Compra pesca legal",
+  "short_name": "PescAOL",
+  "description": "Consulta ciudadana de locales con pesca legal en la Región de Ñuble.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f6f7",
+  "theme_color": "#007ca7",
+  "lang": "es-CL",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }
