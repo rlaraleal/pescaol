@@ -1,0 +1,12 @@
+{
+  "name":"PescAOL - Compra pesca legal",
+  "short_name":"PescAOL",
+  "description":"Consulta ciudadana de establecimientos con acreditaciones AOL recientes.",
+  "start_url":"./",
+  "scope":"./",
+  "display":"standalone",
+  "background_color":"#f3f6f7",
+  "theme_color":"#007ca7",
+  "lang":"es-CL",
+  "icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}

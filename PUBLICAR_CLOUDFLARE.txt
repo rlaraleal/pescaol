@@ -1,0 +1,8 @@
+ALTERNATIVA GRATUITA: CLOUDFLARE PAGES
+
+1. Cree una cuenta en https://dash.cloudflare.com/.
+2. Abra Workers & Pages > Create > Pages > Upload assets.
+3. Suba la carpeta descomprimida PescAOL_PUBLICAR_GRATIS.
+4. Asigne el nombre pescaol.
+5. Obtendrá una URL similar a https://pescaol.pages.dev/.
+6. Para actualizar, cree un nuevo despliegue cargando la carpeta actualizada.
