@@ -1,4 +1,4 @@
-# PescAOL Web 1.2
+# PescAOL Web 1.3
 
 ## Botón Instalar PescAOL
 En Chrome y Edge aparecerá cuando el navegador emita el evento de instalación. En iPhone, el botón explica la ruta Safari > Compartir > Añadir a pantalla de inicio.
@@ -11,3 +11,7 @@ Con Python y pandas instalados: `python consolidar_excel.py archivo.xlsx salida_
 
 ## Marcadores
 Esta versión no usa agrupación por zoom. Cada local es un `L.circleMarker` vectorial persistente; acercar o alejar no elimina puntos. Los puntos cercanos pueden superponerse visualmente, pero no desaparecen del mapa.
+
+
+## Corrección 1.3
+El mapa y la ficha usan una estructura fija de dos columnas. Seleccionar un punto solo cambia el contenido de la ficha; no oculta, redimensiona ni reconstruye el mapa.
