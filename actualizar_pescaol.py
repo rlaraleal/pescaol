@@ -32,6 +32,17 @@ def iso_date(v):
     d = pd.to_datetime(v, errors='coerce')
     return '' if pd.isna(d) else d.strftime('%Y-%m-%dT%H:%M:%S')
 
+def update_detail_view(html):
+    """Muestra todo lo emitido al destinatario durante los ultimos 15 dias."""
+    new_show = r"""function show(x){selectedRut=x?.destRut||'';if(!x){$('detail').innerHTML='<div class="empty"><b>Selecciona un local en el mapa</b><br><br>La ficha mostrará todos los recursos y productos acreditados al destinatario durante los últimos 15 días.</div>';return}const gm='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent([x.direccion,x.comuna,'Región de Ñuble, Chile'].filter(Boolean).join(', '));const cutoff=new Date(MAXDATE);cutoff.setDate(cutoff.getDate()-15);const items=DATA.filter(r=>r.destRut===x.destRut&&new Date(r.fecha)>=cutoff&&new Date(r.fecha)<=MAXDATE);const grouped=new Map();items.forEach(r=>{const type=(r.producto||'No informado').toUpperCase(),species=r.especie||'No informado',key=type+'|'+species;const prev=grouped.get(key)||{type,species,qty:0,latest:''};prev.qty+=Number(r.cantidad)||0;if(!prev.latest||new Date(r.fecha)>new Date(prev.latest))prev.latest=r.fecha;grouped.set(key,prev)});const itemHtml=[...grouped.values()].sort((a,b)=>new Date(b.latest)-new Date(a.latest)||a.type.localeCompare(b.type,'es')||a.species.localeCompare(b.species,'es')).map(r=>`<div class="latestItem"><div class="latestItemTop"><div><span class="tag ${r.type==='RECURSO'?'resource':r.type==='PRODUCTO'?'product':''}">${esc(r.type)}</span><br><b>${esc(r.species)}</b><div class="latestMeta">Emisión más reciente: ${fd(r.latest)}</div></div><div class="qty">${fn(r.qty)} t</div></div></div>`).join('');const latest=items.reduce((v,r)=>!v||new Date(r.fecha)>new Date(v)?r.fecha:v,'');$('detail').innerHTML=`<button id="backToMap" class="backToMap" type="button">← Volver al mapa</button><div class="tags"><span class="tag">DESTINO TERMINAL</span><span class="tag warn">UBICACIÓN GEOCODIFICADA / POR VALIDAR</span></div><h2>${esc(x.nombre)}</h2><p class="addr">${esc(x.direccion)}<br>${esc(x.comuna)}, Región de Ñuble</p><div class="facts"><div class="fact"><small>Período informado</small><b>Últimos 15 días</b></div><div class="fact"><small>Emisión más reciente</small><b>${latest?fd(latest):'Sin información'}</b></div></div><div class="latestTitle">Recursos y productos de los últimos 15 días</div><div class="latestMeta">Incluye todas las acreditaciones emitidas al destinatario desde ${fd(cutoff)} hasta ${fd(MAXDATE)}.</div><div class="latestItems">${itemHtml||'<div class="latestItem">Sin recursos o productos en el período.</div>'}</div><div class="last"><a class="btn" href="${gm}" target="_blank" rel="noopener">Ver ubicación en Google Maps</a><div class="notice">La dirección proviene del registro de acreditación. El punto azul fue geocodificado con OpenStreetMap; el punto amarillo corresponde al centro comunal cuando la dirección no pudo resolverse. Requiere validación territorial.</div></div>`;const back=$('backToMap');if(back)back.onclick=scrollToMap;if(isMobileLayout())scrollToDetail();}"""
+    html2, count = re.subn(r"function show\(x\)\{.*?\}\s*function render\(\)\{", new_show + "\nfunction render(){", html, count=1, flags=re.S)
+    if count != 1:
+        raise SystemExit('ERROR: no se pudo actualizar la ficha del local')
+    html2 = html2.replace('todos los recursos o productos incluidos en la acreditación más reciente', 'todos los recursos y productos acreditados durante los últimos 15 días')
+    html2 = html2.replace('Se muestra cada local una sola vez con todos los recursos y productos incluidos en su acreditación más reciente.', 'Se muestra cada local una sola vez con todos los recursos y productos acreditados durante los últimos 15 días.')
+    html2 = re.sub(r'<div class="last"><small>Documento AOL</small><div><b>.*?</b></div>', '<div class="last">', html2, flags=re.S)
+    return html2
+
 def main():
     files = sorted(DATOS.glob('*.xlsx'), key=lambda p: p.stat().st_mtime, reverse=True)
     if not files:
@@ -96,6 +107,7 @@ def main():
         flags=re.S
     )
 
+    html2 = update_detail_view(html2)
     INDEX.write_text(html2, encoding='utf-8')
     print(f'OK: {len(rows)} filas publicadas desde {xlsx.name}')
     print(f'OK: fecha de corte {maxdate}')
