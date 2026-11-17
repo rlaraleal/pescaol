@@ -1,0 +1,52 @@
+name: Actualizar PescAOL desde Excel
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "datos/**.xlsx"
+      - "actualizar_pescaol.py"
+      - ".github/workflows/actualizar-pescaol.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: actualizar-pescaol
+  cancel-in-progress: true
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Validar Excel y actualizar index.html
+        run: python actualizar_pescaol.py
+
+      - name: Publicar cambio generado
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "El Excel no produce cambios en index.html."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Actualizar PescAOL automáticamente desde Excel"
+          git push
