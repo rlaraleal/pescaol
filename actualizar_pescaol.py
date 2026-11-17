@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import hashlib, json, re, sys
+import hashlib, json, re
 from pathlib import Path
 import pandas as pd
 
@@ -22,8 +22,10 @@ def public_rut(v):
         return ''
     return 'pub-' + hashlib.sha256(('PescAOL|' + r).encode('utf-8')).hexdigest()[:16]
 
-def accreditation_id(visacion, solicitud):
-    raw = clean(visacion) or clean(solicitud)
+def accreditation_id(solicitud, visacion):
+    # Nr_Solicitud identifica la AOL completa. Una misma solicitud puede contener
+    # varias lineas y numeros de visacion, uno por recurso o producto.
+    raw = clean(solicitud) or clean(visacion)
     return '' if not raw else hashlib.sha256(('PescAOL-AOL|' + raw).encode('utf-8')).hexdigest()[:16]
 
 def iso_date(v):
@@ -42,7 +44,6 @@ def main():
     if df.empty:
         raise SystemExit('ERROR: el Excel no contiene filas')
 
-    # La aplicacion publica solo destinos de la Region de Nuble (XVI REGION).
     region = df['Region Destino'].map(clean).str.upper()
     filtered = df[region.str.contains(r'XVI|NUBLE|ÑUBLE', regex=True, na=False)].copy()
     if filtered.empty:
@@ -67,9 +68,8 @@ def main():
             'especie': clean(r['Especie Recurso o Producto']),
             'producto': clean(r['Producto/Recurso']),
             'cantidad': 0 if pd.isna(qty) else float(qty),
-            # Clave irreversible para agrupar todas las lineas de una misma AOL.
-            # El codigo AOL original no se publica en index.html.
-            'acreditacionId': accreditation_id(r['N° Visación'], r['Nr_Solicitud']),
+            # Clave irreversible de la solicitud completa. No publica el codigo AOL.
+            'acreditacionId': accreditation_id(r['Nr_Solicitud'], r['N° Visación']),
         })
 
     maxdate = filtered['_fecha'].max().strftime('%Y-%m-%dT%H:%M:%S')
@@ -87,6 +87,14 @@ def main():
     )
     if count != 1:
         raise SystemExit('ERROR: no se encontro MAXDATE en index.html')
+
+    # Defensa adicional: no permitir que reaparezca el bloque antiguo en la ficha.
+    html2 = re.sub(
+        r'<div class="last"><small>Documento AOL</small><div><b>.*?</b></div>',
+        '<div class="last">',
+        html2,
+        flags=re.S
+    )
 
     INDEX.write_text(html2, encoding='utf-8')
     print(f'OK: {len(rows)} filas publicadas desde {xlsx.name}')
