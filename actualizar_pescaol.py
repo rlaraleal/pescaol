@@ -22,6 +22,10 @@ def public_rut(v):
         return ''
     return 'pub-' + hashlib.sha256(('PescAOL|' + r).encode('utf-8')).hexdigest()[:16]
 
+def accreditation_id(visacion, solicitud):
+    raw = clean(visacion) or clean(solicitud)
+    return '' if not raw else hashlib.sha256(('PescAOL-AOL|' + raw).encode('utf-8')).hexdigest()[:16]
+
 def iso_date(v):
     d = pd.to_datetime(v, errors='coerce')
     return '' if pd.isna(d) else d.strftime('%Y-%m-%dT%H:%M:%S')
@@ -63,8 +67,9 @@ def main():
             'especie': clean(r['Especie Recurso o Producto']),
             'producto': clean(r['Producto/Recurso']),
             'cantidad': 0 if pd.isna(qty) else float(qty),
-            'visacion': clean(r['N° Visación']) or '-',
-            'solicitud': clean(r['Nr_Solicitud']),
+            # Clave irreversible para agrupar todas las lineas de una misma AOL.
+            # El codigo AOL original no se publica en index.html.
+            'acreditacionId': accreditation_id(r['N° Visación'], r['Nr_Solicitud']),
         })
 
     maxdate = filtered['_fecha'].max().strftime('%Y-%m-%dT%H:%M:%S')
