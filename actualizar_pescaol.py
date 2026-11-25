@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import json, re, hashlib
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 import pandas as pd
 
@@ -27,6 +29,15 @@ CENTERS = {
 
 def clean(v):
     return '' if pd.isna(v) else re.sub(r'\s+', ' ', str(v)).strip()
+def norm_rut(v):
+    return re.sub(r'[^0-9K]', '', clean(v).upper())
+def norm_address(v):
+    x=clean(v).upper()
+    x=re.sub(r'\bAVDA?\.?\b','AVENIDA',x)
+    x=re.sub(r'\bPJE\.?\b','PASAJE',x)
+    x=re.sub(r'\bCAM\.?\b','CAMINO',x)
+    x=re.sub(r'\bN[°ºO]?\.?\s*','N° ',x)
+    return re.sub(r'\s+',' ',x).strip(' ,.-')
 
 def iso_date(v):
     d = pd.to_datetime(v, errors='coerce')
@@ -63,6 +74,7 @@ def main():
     if not files: raise SystemExit('ERROR: no hay archivos .xlsx en datos/')
     xlsx=files[0]
     df=pd.read_excel(xlsx,engine='openpyxl')
+    all_rows=df.copy()
     missing=sorted(REQUIRED-set(df.columns))
     if missing: raise SystemExit('ERROR: faltan columnas obligatorias: '+', '.join(missing))
     if df.empty: raise SystemExit('ERROR: el Excel no contiene filas')
@@ -86,12 +98,33 @@ def main():
         raise SystemExit('ERROR: no se encontró "const DATA=" en index.html')
     oldcoords=coord_lookup(current)
 
+    # Excluir destinos intermedios: si un RUT aparece como remitente en CUALQUIER fila
+    # del Excel completo, no se publica como punto de venta o destino final.
+    # El reporte AOL real usa principalmente la columna Rut_Remitente_Visa.
+    sender_col=next((c for c in (
+        'Rut_Remitente_Visa','RUT_REMITENTE_VISA','Rut Remitente Visa',
+        'Rut Remitente','RUT Remitente','Rut_Remitente','RUT_REMITENTE',
+        'Rut Emisor','RUT Emisor','Rut_Emisor','RUT_EMISOR'
+    ) if c in all_rows.columns),None)
+    if not sender_col:
+        raise SystemExit('ERROR: no se encontró una columna de RUT remitente; se detiene para evitar publicar agentes intermedios')
+    sender_ruts=set(all_rows[sender_col].map(norm_rut))
+    sender_ruts.discard('')
+    before=len(df)
+    df=df[~df['Rut Destinatario'].map(norm_rut).isin(sender_ruts)].copy()
+    excluded=before-len(df)
     places={}
     for _,r in df.iterrows():
-        rut=clean(r['Rut Destinatario']); nombre=clean(r['Nombre Destinatario'])
-        comuna=clean(r['Ciudad de Destino']); direccion=clean(r['Dirección de Destino'])
-        key='|'.join((rut,nombre,comuna,direccion))
-        p=places.setdefault(key,{'id':key,'rut':rut,'nombre':nombre,'comuna':comuna,'direccion':direccion,'items':[]})
+        rut_key=norm_rut(r['Rut Destinatario'])
+        if not rut_key: continue
+        nombre=clean(r['Nombre Destinatario'])
+        comuna=clean(r['Ciudad de Destino'])
+        direccion=norm_address(r['Dirección de Destino'])
+        # Un único destinatario y punto por RUT.
+        p=places.setdefault(rut_key,{'id':rut_key,'rut':clean(r['Rut Destinatario']),'nombre':nombre,'comuna':comuna,'direccion':direccion,'items':[],'_addresses':{}})
+        if nombre and not p['nombre']: p['nombre']=nombre
+        if comuna and not p['comuna']: p['comuna']=comuna
+        if direccion: p['_addresses'][direccion]=p['_addresses'].get(direccion,0)+1
         qty=pd.to_numeric(r['Toneladas Visadas'],errors='coerce')
         p['items'].append({
             'emision':iso_date(r['Fecha Emision']),
@@ -102,7 +135,10 @@ def main():
             'objeto':clean(r['Objeto del Destino']) if 'Objeto del Destino' in df.columns else '',
             'estado':clean(r['Estado_Visacion']) if 'Estado_Visacion' in df.columns else ''
         })
-
+    for p in places.values():
+        if p['_addresses']:
+            p['direccion']=max(p['_addresses'],key=p['_addresses'].get).title().replace('N°','N°')
+        p.pop('_addresses',None)
     result=[]
     for i,p in enumerate(places.values()):
         exact=p['id']; saved=oldcoords.get(exact) or oldcoords.get(p['rut'])
@@ -127,12 +163,19 @@ def main():
     html,n=re.subn(r"const\s+MAXDATE\s*=\s*new Date\('[^']*'\)",f"const MAXDATE=new Date('{stamp}')",html,count=1)
     if n!=1:
         raise SystemExit('ERROR: no se encontró const MAXDATE=new Date(...) en index.html')
+    processed=datetime.now(ZoneInfo('America/Santiago')).strftime('%d-%m-%Y %H:%M')
+    safe_name=xlsx.name.replace("'",'')
+    html,n1=re.subn(r"const\s+SOURCE_FILE\s*=\s*'[^']*'",f"const SOURCE_FILE='{safe_name}'",html,count=1)
+    html,n2=re.subn(r"const\s+SOURCE_UPDATED\s*=\s*'[^']*'",f"const SOURCE_UPDATED='{processed}'",html,count=1)
+    if n1!=1 or n2!=1:
+        raise SystemExit('ERROR: faltan SOURCE_FILE o SOURCE_UPDATED en index.html')
     # Actualiza textos visibles de fecha sin alterar la lógica móvil desde la hora real.
     d=maxdate.strftime('%d-%m-%Y')
     html=re.sub(r'Datos actualizados hasta el \d{2}-\d{2}-\d{4}\.',f'Datos actualizados hasta el {d}.',html,count=1)
     html=re.sub(r'Datos actualizados hasta: \d{4}-\d{2}-\d{2}\.',f'Datos actualizados hasta: {maxdate:%Y-%m-%d}.',html,count=1)
     INDEX.write_text(html,encoding='utf-8')
-    print(f'OK: {len(df)} filas y {len(result)} ubicaciones publicadas desde {xlsx.name}')
+    print(f'OK: {excluded} filas excluidas porque el destinatario también figura como remitente en {sender_col}')
+    print(f'OK: {len(df)} filas y {len(result)} ubicaciones finales publicadas desde {xlsx.name}')
     print(f'OK: fecha de corte {stamp}')
     print('OK: se conservaron las coordenadas existentes cuando fue posible')
 
