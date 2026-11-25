@@ -22,8 +22,22 @@ def data_block(html):
  m=re.search(r'\bconst\s+DATA\s*=\s*',html)
  if not m:return [],None,None
  obj,n=json.JSONDecoder().raw_decode(html[m.end():]);return obj,m.end(),m.end()+n
-def links_from_pivot(raw):
- piv=pd.read_excel(XLSX,sheet_name='Hoja1',header=None,engine='openpyxl',usecols='A:B')
+def find_sheets():
+ book=pd.ExcelFile(XLSX,engine='openpyxl')
+ data_sheet=None;links_sheet=None
+ required={'Fecha Emision','Rut Destinatario','Nombre Destinatario','Dirección de Destino'}
+ for sh in book.sheet_names:
+  probe=pd.read_excel(XLSX,sheet_name=sh,engine='openpyxl',nrows=5)
+  if required.issubset(set(probe.columns)): data_sheet=sh
+  raw2=pd.read_excel(XLSX,sheet_name=sh,header=None,engine='openpyxl',usecols='A:B',nrows=700)
+  if raw2.apply(lambda col: col.astype(str).str.startswith(('http://','https://')).any()).any(): links_sheet=sh
+ if not data_sheet: raise SystemExit('ERROR: no se encontró la hoja con datos AOL')
+ if not links_sheet: raise SystemExit('ERROR: no se encontró la hoja con enlaces de Google Maps')
+ print(f'OK: hoja AOL={data_sheet}; hoja Maps={links_sheet}')
+ return data_sheet,links_sheet
+
+def links_from_pivot(raw,links_sheet):
+ piv=pd.read_excel(XLSX,sheet_name=links_sheet,header=None,engine='openpyxl',usecols='A:B')
  names={norm(x) for x in raw['Nombre Destinatario'].dropna()};addrs={norm(x) for x in raw['Dirección de Destino'].dropna()};bn={};ba={}
  for _,r in piv.iterrows():
   label=norm(r.iloc[0]);url=clean(r.iloc[1])
@@ -55,7 +69,8 @@ def resolve(url):
  except Exception as e:print('AVISO:',url,e);CACHE[url]=None;return None
 def main():
  if not XLSX.exists():raise SystemExit('ERROR: falta datos/aol_actual.xlsx')
- raw=pd.read_excel(XLSX,sheet_name='Sheet1',engine='openpyxl')
+ data_sheet,links_sheet=find_sheets()
+ raw=pd.read_excel(XLSX,sheet_name=data_sheet,engine='openpyxl')
  sender='Rut_Remitente_Visa'
  if sender not in raw.columns:raise SystemExit('ERROR: falta Rut_Remitente_Visa')
  senders=set(raw[sender].map(norm_rut));senders.discard('')
@@ -63,7 +78,7 @@ def main():
  if 'Estado_Visacion' in df:df=df[~df['Estado_Visacion'].map(clean).str.upper().str.contains('ANULADA',na=False)].copy()
  df['_fecha']=pd.to_datetime(df['Fecha Emision'],errors='coerce');df=df[df['_fecha'].notna()];maxdate=df['_fecha'].max();df=df[df['_fecha']>=maxdate-pd.Timedelta(days=15)]
  before=len(df);df=df[~df['Rut Destinatario'].map(norm_rut).isin(senders)].copy();excluded=before-len(df)
- byname,byaddr=links_from_pivot(raw);html=INDEX.read_text(encoding='utf-8');old,start,end=data_block(html)
+ byname,byaddr=links_from_pivot(raw,links_sheet);html=INDEX.read_text(encoding='utf-8');old,start,end=data_block(html)
  if start is None:raise SystemExit('ERROR: no se encontró const DATA=')
  saved={norm_rut(p.get('rut'))+'|'+norm(p.get('comuna')):(p.get('lat'),p.get('lng'),p.get('precision',''),p.get('mapsUrl','')) for p in old}
  places={}
