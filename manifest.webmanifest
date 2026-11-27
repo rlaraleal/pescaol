@@ -1,14 +1,20 @@
 {
-  "id": "./",
-  "name": "PescAOL - Compra pesca legal",
+  "name": "PescAOL · Compra pesca legal",
   "short_name": "PescAOL",
-  "description": "Consulta ciudadana de locales con pesca legal en la Región de Ñuble.",
-  "start_url": "./",
-  "scope": "./",
+  "description": "Consulta ciudadana de locales con movimientos AOL recientes en la Región de Ñuble.",
+  "id": "/pescaol/",
+  "start_url": "/pescaol/?source=pwa",
+  "scope": "/pescaol/",
   "display": "standalone",
-  "background_color": "#f3f6f7",
-  "theme_color": "#007ca7",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "background_color": "#f3fafa",
+  "theme_color": "#073e68",
   "lang": "es-CL",
+  "orientation": "any",
   "icons": [
     {
       "src": "icon-192.png",
@@ -21,6 +27,20 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Abrir mapa",
+      "short_name": "Mapa",
+      "url": "/pescaol/#consulta",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }
