@@ -105,11 +105,23 @@ def main():
  html=html[:start]+json.dumps(result,ensure_ascii=False,separators=(',',':'))+html[end:]
  stamp=eligible_max.strftime('%Y-%m-%dT%H:%M:%S');html,n=re.subn(r"const\s+MAXDATE\s*=\s*new Date\('[^']*'\)",f"const MAXDATE=new Date('{stamp}')",html,count=1)
  now=datetime.now(ZoneInfo('America/Santiago')).strftime('%d-%m-%Y %H:%M');html=re.sub(r"const\s+SOURCE_FILE\s*=\s*'[^']*'","const SOURCE_FILE='aol_actual.xlsx + Coordenadas.xlsx'",html,count=1);html=re.sub(r"const\s+SOURCE_UPDATED\s*=\s*'[^']*'",f"const SOURCE_UPDATED='{now}'",html,count=1)
+ # Aviso permanente para el ciudadano: Leaflet es referencial y Google Maps tiene prioridad.
+ notice='<div id="mapReferenceNotice" style="margin:10px 0 14px;padding:10px 13px;border:1px solid #c9dde8;border-radius:12px;background:#f4fafc;color:#486779;font-size:10px;line-height:1.45"><b>Ubicación referencial:</b> los puntos del mapa Leaflet son una referencia visual. Para llegar al establecimiento, prioriza el botón <b>Abrir en Google Maps</b> disponible en la ficha del local.</div>'
+ if 'id="mapReferenceNotice"' not in html:
+  anchor='<div class="mapmeta">'
+  if anchor in html:html=html.replace(anchor,notice+anchor,1)
+  else:
+   anchor='<div class="mapgrid">'
+   if anchor in html:html=html.replace(anchor,notice+anchor,1)
  INDEX.write_text(html,encoding='utf-8');pd.DataFrame(audit).to_csv(AUDIT,index=False,encoding='utf-8-sig')
  exact=sum(p['precision']!='Centro comunal aproximado' for p in result);centers=len(result)-exact
  print(f'OK: última AOL del archivo {file_max}; última AOL publicable {eligible_max}')
  print(f'OK: {excluded} filas excluidas porque el destinatario también es remitente')
  print(f'OK: {len(result)} locales: {exact} con coordenadas maestras, {centers} en centro comunal')
  print(f'OK: {sum(len(v) for v in by_name.values())} coordenadas por razón social y {sum(len(v) for v in by_addr.values())} por dirección')
+ recent_cut=eligible_max-pd.Timedelta(days=15)
+ stale=raw[(raw['Region Destino'].map(clean).str.upper().str.contains(r'XVI|NUBLE|ÑUBLE',regex=True,na=False)) & (pd.to_datetime(raw['Fecha Emision'],errors='coerce',dayfirst=True)<recent_cut)]
+ stale_communes=sorted(set(stale['Ciudad de Destino'].map(clean))-set(p['comuna'] for p in result))
+ if stale_communes:print('INFO: comunas sin AOL dentro de los 15 días publicables:',', '.join(stale_communes))
  if invalid:print(f'AVISO: {len(invalid)} filas de Coordenadas.xlsx no se usaron; revisar auditoría o estructura')
 if __name__=='__main__':main()
